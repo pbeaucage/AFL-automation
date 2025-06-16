@@ -15,10 +15,7 @@ class OneSelectorBlowoutSampleCell(TwoSelectorBlowoutSampleCell):
 
     def __init__(self,pump,
                       selector,
-                      rinse_tank_level=950,
-                      waste_tank_level=0,
-                      cell_waste_tank_level=0,
-                      overrides=None, 
+                      overrides=None,
                       ):
         '''
             ncells = number of connected cells (up to 6 cells with a 10-position flow selector, with four positions taken by load port, rinse, waste, and air)
@@ -43,9 +40,7 @@ class OneSelectorBlowoutSampleCell(TwoSelectorBlowoutSampleCell):
         self.cell_state = defaultdict(lambda: 'clean')
         self.syringe_dirty = False
 
-        self.rinse_tank_level = rinse_tank_level
-        self.waste_tank_level = waste_tank_level
-        self.cell_waste_tank_level = cell_waste_tank_level
+
 
 
     def drySyringe(self,blow=True,waittime=1):

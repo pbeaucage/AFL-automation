@@ -38,11 +38,8 @@ class PneumaticSampleCell(Driver,SampleCell):
     def __init__(self,pump,
                       relayboard,
                       digitalin=None,
-                      rinse1_tank_level=950,
-                      rinse2_tank_level=950,
-                      waste_tank_level=0,
                       load_stopper=None,
-                      overrides=None, 
+                      overrides=None,
                       ):
         '''
             pump: a pump object supporting withdraw() and dispense() methods
@@ -61,9 +58,7 @@ class PneumaticSampleCell(Driver,SampleCell):
         self.cell_state = defaultdict(lambda: 'clean')
         self.digitalin = digitalin
 
-        self.rinse1_tank_level = rinse1_tank_level
-        self.waste_tank_level = waste_tank_level
-        self.rinse2_tank_level = rinse2_tank_level
+
 
         self.loadStoppedExternally = False
         self.state = 'FRESH'
@@ -110,16 +105,7 @@ class PneumaticSampleCell(Driver,SampleCell):
         self.pump.withdraw(self.config['withdraw_vol'])
         self.pump_level = self.config['withdraw_vol']
 
-    @Driver.quickbar(qb={'button_text':'Reset Tank Levels',
-        'params':{
-        'rinse1':{'label':'Rinse1 (mL)','type':'float','default':950},
-        'rinse2':{'label':'Rinse2 (mL)','type':'float','default':950},
-        'waste':{'label':'Waste (mL)','type':'float','default':0}
-        }})
-    def reset_tank_levels(self,rinse1=950,rinse2=950,waste=0):
-        self.rinse1_tank_level = rinse1
-        self.waste_tank_level = waste
-        self.rinse2_tank_level = rinse2
+
 
     @property
     def app(self):
@@ -138,9 +124,6 @@ class PneumaticSampleCell(Driver,SampleCell):
         status = []
         status.append(f'State: {self.state}')
         status.append(f'Arm State: {self.arm_state}')
-        status.append(f'Rinse 1 tank: {self.rinse1_tank_level} mL')
-        status.append(f'Rinse 2 tank: {self.rinse2_tank_level} mL')
-        status.append(f'Waste tank: {self.waste_tank_level} mL')
         status.append(f'Relay status: {self.relayboard.getChannels()}')
         if self._USE_ARM_LIMITS:
             status.append(f"Arm Up Limit: {not self.digitalin.state['ARM_UP']} / Arm Down Limit{not self.digitalin.state['ARM_DOWN']}")
@@ -272,11 +255,7 @@ class PneumaticSampleCell(Driver,SampleCell):
     def rinseAll(self):
         self.rinseCell()
 
-    def setRinseLevel(self,vol):
-        self.rinse_tank_level = vol
 
-    def setWasteLevel(self,vol):
-        self.waste_tank_level = vol
 
     @Driver.quickbar(qb={'button_text':'Prime Rinse'})
     def primeRinse(self,waittime=10):
