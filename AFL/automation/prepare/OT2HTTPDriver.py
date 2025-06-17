@@ -1823,234 +1823,47 @@ class OT2HTTPDriver(Driver):
 
             return pipettes
 
-        # Generate HTML
-        html = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <style>
-                body {
-                    font-family: Arial, sans-serif;
-                    margin: 20px;
-                    background-color: #fafafa;
-                }
-                .deck-container {
-                    max-width: 900px;
-                    margin: 0 auto;
-                    background: white;
-                    border-radius: 10px;
-                    padding: 20px;
-                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                }
-                .deck-title {
-                    text-align: center;
-                    color: #333;
-                    margin-bottom: 20px;
-                    font-size: 24px;
-                    font-weight: bold;
-                }
-                .deck-grid {
-                    display: grid;
-                    grid-template-columns: repeat(3, 1fr);
-                    gap: 15px;
-                    margin-bottom: 20px;
-                }
-                .deck-slot {
-                    border: 2px solid #ddd;
-                    border-radius: 8px;
-                    padding: 12px;
-                    text-align: center;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: flex-start;
-                    align-items: center;
-                    position: relative;
-                    transition: transform 0.2s;
-                    min-height: 180px;
-                }
-                .deck-slot:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                }
-                .slot-number {
-                    position: absolute;
-                    top: 5px;
-                    left: 8px;
-                    font-weight: bold;
-                    font-size: 14px;
-                    color: #666;
-                    background: rgba(255,255,255,0.8);
-                    padding: 2px 4px;
-                    border-radius: 3px;
-                }
-                .slot-content {
-                    font-size: 13px;
-                    font-weight: bold;
-                    margin: 15px 0 8px 0;
-                    text-align: center;
-                    line-height: 1.2;
-                }
-                .well-layout {
-                    flex-grow: 1;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    margin: 5px 0;
-                }
-                .well-info {
-                    font-size: 10px;
-                    color: #666;
-                    margin: 5px 0;
-                    font-style: italic;
-                }
-                .slot-details {
-                    font-size: 9px;
-                    color: #666;
-                    text-align: center;
-                    margin-top: auto;
-                    padding-top: 5px;
-                    border-top: 1px solid rgba(0,0,0,0.1);
-                    width: 100%;
-                }
-                .pipettes-section {
-                    margin-top: 20px;
-                    padding: 15px;
-                    background: #f8f9fa;
-                    border-radius: 8px;
-                }
-                .pipettes-title {
-                    font-size: 18px;
-                    font-weight: bold;
-                    margin-bottom: 10px;
-                    color: #333;
-                }
-                .pipette-item {
-                    background: white;
-                    padding: 10px;
-                    margin: 5px 0;
-                    border-radius: 5px;
-                    border-left: 4px solid #2196f3;
-                }
-                .trash-slot {
-                    background: #ffebee !important;
-                    border-color: #e57373 !important;
-                }
-                .legend {
-                    display: flex;
-                    justify-content: center;
-                    gap: 20px;
-                    margin: 15px 0;
-                    font-size: 12px;
-                }
-                .legend-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 5px;
-                }
-                .legend-color {
-                    width: 12px;
-                    height: 12px;
-                    border-radius: 2px;
-                }
-                svg circle:hover, svg rect:hover {
-                    stroke-width: 2 !important;
-                    stroke: #ff5722 !important;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="deck-container">
-                <div class="deck-title">🧪 Opentrons OT-2 Deck Layout</div>
+        from importlib.resources import files
+        from jinja2 import Template
 
-                <div class="legend">
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #4caf50;"></div>
-                        <span>Available Tips</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #f44336;"></div>
-                        <span>Used Tips</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #42a5f5;"></div>
-                        <span>Plate Wells</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #66bb6a;"></div>
-                        <span>Reservoir Wells</span>
-                    </div>
-                </div>
+        template_path = files('AFL.automation.driver_templates').joinpath('deck_visualization.html')
+        template = Template(template_path.read_text())
 
-                <div class="deck-grid">
-        """
-
-        # Generate deck slots
+        slot_rows = []
         for row in slot_layout:
+            row_list = []
             for slot in row:
                 if slot == "Trash":
-                    html += f"""
-                    <div class="deck-slot trash-slot">
-                        <div class="slot-number">Trash</div>
-                        <div class="slot-content">🗑️ Waste</div>
-                        <div class="well-layout">
-                            <svg width="60" height="45">
-                                <rect x="10" y="10" width="40" height="25" fill="#f44336" stroke="#333" stroke-width="1" rx="3"/>
-                                <text x="30" y="25" text-anchor="middle" font-size="8" fill="white">TRASH</text>
-                            </svg>
-                        </div>
-                        <div class="slot-details">Fixed trash bin</div>
-                    </div>
-                    """
+                    row_list.append({
+                        "slot": "Trash",
+                        "name": "🗑️ Waste",
+                        "details": "Fixed trash bin",
+                        "color": "#ffebee",
+                        "svg": (
+                            "<svg width=\"60\" height=\"45\">"
+                            "<rect x=\"10\" y=\"10\" width=\"40\" height=\"25\" fill=\"#f44336\" stroke=\"#333\" stroke-width=\"1\" rx=\"3\"/>"
+                            "<text x=\"30\" y=\"25\" text-anchor=\"middle\" font-size=\"8\" fill=\"white\">TRASH</text>"
+                            "</svg>"
+                        ),
+                        "well_info": "",
+                        "is_trash": True,
+                    })
                 else:
                     content = get_slot_content(slot)
-                    svg_content = content['svg'] if content['svg'] else '<div style="height: 90px; display: flex; align-items: center; justify-content: center; color: #ccc; font-style: italic;">No wells</div>'
-                    well_info_display = f'<div class="well-info">{content["well_info"]}</div>' if content['well_info'] else ''
+                    row_list.append({
+                        "slot": slot,
+                        "name": content["name"],
+                        "details": content["details"],
+                        "color": content["color"],
+                        "svg": content["svg"],
+                        "well_info": content["well_info"],
+                        "is_trash": False,
+                    })
+            slot_rows.append(row_list)
 
-                    html += f"""
-                    <div class="deck-slot" style="background-color: {content['color']};">
-                        <div class="slot-number">{slot}</div>
-                        <div class="slot-content">{content['name']}</div>
-                        <div class="well-layout">{svg_content}</div>
-                        {well_info_display}
-                        <div class="slot-details">{content['details']}</div>
-                    </div>
-                    """
-
-        html += """
-                </div>
-        """
-
-        # Add pipettes section
         pipettes = get_pipette_info()
-        if pipettes:
-            html += """
-                <div class="pipettes-section">
-                    <div class="pipettes-title">🔧 Loaded Pipettes</div>
-            """
 
-            for pipette in pipettes:
-                tip_rack_text = f"Tip racks in slots: {', '.join(pipette['tip_racks'])}" if pipette['tip_racks'] else "No tip racks assigned"
-                html += f"""
-                    <div class="pipette-item">
-                        <strong>{pipette['mount']} Mount:</strong> {pipette['name']}<br>
-                        <small>ID: {pipette['id']}</small><br>
-                        <small>{tip_rack_text}</small>
-                    </div>
-                """
-
-            html += """
-                </div>
-            """
-
-        html += """
-                <div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border-radius: 5px; font-size: 11px; color: #1565c0;">
-                    💡 <strong>Tip:</strong> Hover over wells to see names. For tipracks: 🟢 = Available tips, 🔴 = Used tips
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-
+        html = template.render(slots=slot_rows, pipettes=pipettes)
         return html
 
 
