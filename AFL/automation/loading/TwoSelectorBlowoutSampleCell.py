@@ -44,10 +44,7 @@ class TwoSelectorBlowoutSampleCell(Driver,SampleCell):
     def __init__(self,pump,
                       selector,
                       blowselector,
-                      rinse_tank_level=950,
-                      waste_tank_level=0,
-                      cell_waste_tank_level=0,
-                      overrides=None, 
+                      overrides=None,
                       ):
         '''
             ncells = number of connected cells (up to 6 cells with a 10-position flow selector, with four positions taken by load port, rinse, waste, and air)
@@ -72,20 +69,6 @@ class TwoSelectorBlowoutSampleCell(Driver,SampleCell):
         self.cell_state = defaultdict(lambda: 'clean')
         self.syringe_dirty = False
 
-        self.rinse_tank_level = rinse_tank_level
-        self.waste_tank_level = waste_tank_level
-        self.cell_waste_tank_level = cell_waste_tank_level
-
-    @Driver.quickbar(qb={'button_text':'Reset Tank Levels',
-        'params':{
-        'rinse':{'label':'Rinse (mL)','type':'float','default':950},
-        'waste':{'label':'Waste (mL)','type':'float','default':950},
-        'cell_waste':{'label':'Cell Waste (mL)','type':'float','default':0}
-        }})
-    def reset_tank_levels(self,rinse=950,waste=0,cell_waste=0):
-        self.rinse_tank_level = rinse
-        self.waste_tank_level = waste
-        self.cell_waste_tank_level = cell_waste
 
     @property
     def app(self):
@@ -105,9 +88,6 @@ class TwoSelectorBlowoutSampleCell(Driver,SampleCell):
         status.append(f'CellState: {dict(self.cell_state)}')
         status.append(f'SelectorState: {self.selector.portString}')
         status.append(f'BlowSelectorState: {self.blowselector.portString}')
-        status.append(f'Rinse tank: {self.rinse_tank_level} mL')
-        status.append(f'Waste tank: {self.waste_tank_level} mL')
-        status.append(f'Cell Waste: {self.cell_waste_tank_level} mL')
         status.append(f'Pump: {self.pump.name}')
         status.append(f'Selector: {self.selector.name}')
         status.append(f'BlowSelector: {self.blowselector.name}')
@@ -135,14 +115,7 @@ class TwoSelectorBlowoutSampleCell(Driver,SampleCell):
             self.selector.selectPort('waste')
             self.pump.dispense(vol_source-vol_dest)
 
-        if source == 'rinse':
-            self.rinse_tank_level -= vol_source
 
-        if dest == 'waste':
-            self.waste_tank_level += vol_dest
-
-        if dest == 'cell':
-            self.cell_waste_tank_level += min(vol_source,vol_dest)
 
 
     def catchToSyringe(self,sampleVolume=0):
@@ -347,10 +320,6 @@ class TwoSelectorBlowoutSampleCell(Driver,SampleCell):
         self.rinseCatch()
         self.rinseSyringe()
 
-    def setRinseLevel(self,vol):
-        self.rinse_tank_level = vol
 
-    def setWasteLevel(self,vol):
-        self.waste_tank_level = vol
 
 
