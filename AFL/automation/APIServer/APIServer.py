@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify,send_file
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
 
 from flask_cors import CORS
 
@@ -74,6 +74,7 @@ class APIServer:
         #allows the flask server to find the static and templates directories
         root_path = pathlib.Path(__file__).parent.absolute()
         self.app = Flask(name,root_path=root_path)
+        self.init_logging()
 
         self.queue_daemon = None
         self.app.config['JWT_SECRET_KEY'] = '03570' #hide the secret?
@@ -93,6 +94,7 @@ class APIServer:
         if self.driver.dropbox is None:
             self.driver.dropbox = {}
         self.driver._queue = self.task_queue
+        self._add_driver_static_routes()
         self.queue_daemon = QueueDaemon(self.app,driver,self.task_queue,self.history,data = self.data)
 
         if start_ca:
@@ -116,24 +118,27 @@ class APIServer:
             port = 5000
         else:
             port = kwargs['port']
+        properties = {
+                        'system_info': 'AFL',
+                        'driver_name': self.queue_daemon.driver.name,
+                        'server_name': self.name,
+                        'contact': self.contact,
+                        'driver_parents': repr(self.queue_daemon.driver.__class__.__mro__).encode('utf-8')[:150].decode('utf-8',errors='ignore')
+                        # other stuff here, AFL system serial, etc.
+                        }
+        print(properties)
         self.zeroconf_info = ServiceInfo(
             "_aflhttp._tcp.local.",
             f"{self.queue_daemon.driver.name}._aflhttp._tcp.local.",
             addresses=[socket.inet_aton("127.0.0.1")],
             port=port,
-            properties= {
-                        'system_info': 'AFL',
-                        'driver_name': self.queue_daemon.driver.name,
-                        'server_name': self.name,
-                        'contact': self.contact,
-                        'driver_parents': repr(self.queue_daemon.driver.__class__.__mro__)
-                        # other stuff here, AFL system serial, etc.
-                        },
+            properties= properties,
             server=f"{socket.gethostname()}.local.",
          )
         self.zeroconf = Zeroconf(ip_version=IPVersion.All)
         self.zeroconf.register_service(self.zeroconf_info)
-        print("Started mDNS service advertisement.")
+        self.app.logger.info("Started mDNS service advertisement.")
+
     def run(self, use_waitress=None, **kwargs):
         if self.queue_daemon is None:
             raise ValueError('create_queue must be called before running server')
@@ -141,7 +146,7 @@ class APIServer:
             try:
                 self.advertise_zeroconf(**kwargs)
             except Exception as e:
-                print(f'failed while trying to start zeroconf {e}, continuing')
+                self.app.logger.warning(f'failed while trying to start zeroconf {e}, continuing')
         # before_first_request was removed in Flask >=3.0, so run init here
         # to start the queue daemon before the server begins serving.
         self.init()
@@ -263,15 +268,39 @@ class APIServer:
     def get_queued_commands(self):
         return jsonify(self.driver.queued.function_info),200
 
+    def _add_driver_static_routes(self):
+        '''Serve any extra static directories defined by the driver.
+        
+        This method creates Flask routes for each directory specified in the driver's
+        static_dirs dictionary. Files are served under /static/{subpath}/ URLs and
+        are accessible via HTTP GET requests.
+        
+        The method only creates routes for directories that actually exist on the
+        filesystem. Non-existent directories are silently skipped.
+        
+        Example:
+            If driver.static_dirs = {'docs': '/path/to/docs', 'assets': '/path/to/assets'}
+            then files will be served at:
+            - /static/docs/filename -> serves files from /path/to/docs/
+            - /static/assets/filename -> serves files from /path/to/assets/
+        '''
+        for subpath, directory in getattr(self.driver, 'static_dirs', {}).items():
+            directory = pathlib.Path(directory)
+            if directory.exists():
+                route = f'/static/{subpath}/<path:filename>'
+                endpoint = f'static_{subpath}'
+                handler = lambda filename, directory=directory: send_from_directory(directory, filename)
+                self.app.add_url_rule(route, endpoint, handler)
+
     def add_unqueued_routes(self):
-        print('Adding unqueued routes')
+        self.app.logger.info('Adding unqueued routes')
         for fn in self.driver.unqueued.functions:
             route = '/' + fn
             name = fn
             kwarg_add = self.driver.unqueued.decorator_kwargs[fn]
             response_function = None
             response_function = lambda fn=fn,kwarg_add=kwarg_add: self.render_unqueued(getattr(self.driver,fn),kwarg_add)
-            print(f'Adding route {route} for function named {name} with baked-in kwargs {kwarg_add}')
+            self.app.logger.debug(f'Adding route {route} for function named {name} with baked-in kwargs {kwarg_add}')
             self.app.add_url_rule(route,name,response_function,methods=['GET'])
 
     def query_driver(self):
@@ -354,7 +383,7 @@ class APIServer:
         ##result = lambda: func(**kwargs)
 
         if render_hint is None: #try and infer what we should do based on the return type of func.
-            res_probe = result[0] if type(result) == list else result
+            res_probe = result[0] if (type(result) == list and len(result)>0) else result
             if type(res_probe) == np.ndarray:
                 if res_probe.ndim == 1:
                     render_hint = '1d_plot'
@@ -515,7 +544,7 @@ class APIServer:
         task = request.json
         user = get_jwt_identity()
         obj = request.json['obj']
-        print(f'')
+        self.app.logger.debug('deposit_obj called')
         if 'uuid' in request.json.keys():
             uid = request.json['uuid']
         else:
@@ -600,7 +629,7 @@ class APIServer:
         reordered_queue = data['queue']
         matches = True
         
-        print(prior_state)
+        self.app.logger.debug(prior_state)
         if prior_state != 'Paused':
             self.app.logger.info(f'Setting queue paused state to true')
             self.queue_daemon.paused = True
@@ -614,15 +643,15 @@ class APIServer:
                 if rq_task['uuid'] == str(q_task['uuid']):
                     task_found = True
                     temp_queue.insert(i, q_task)
-                    print('found', rq_task)
+                    self.app.logger.debug(f'found {rq_task}')
             if task_found == False:
                 matches = False
-                print('failed')
+                self.app.logger.debug('failed')
                 return 'Failed',400
         if matches:
-            print('matched')
+            self.app.logger.debug('matched')
             self.task_queue.queue = temp_queue
-            print(self.task_queue.queue)
+            self.app.logger.debug(self.task_queue.queue)
             
         if prior_state != 'Paused':
             self.app.logger.info(f'Setting queue paused state to false')
@@ -634,7 +663,7 @@ class APIServer:
     def remove_items(self):
         items = request.json
         for i in range(len(items)):
-            print('remove', items[i])
+            self.app.logger.debug(f'remove {items[i]}')
             uuid = items[i]['uuid']
             self.task_queue.remove(self._uuid_to_qpos(uuid))
         return 'Success',200
